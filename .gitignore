@@ -10,6 +10,10 @@ __pycache__/
 .idea
 .idea/*
 
+# Trios code
+trios
+trios/*
+
 # Distribution / packaging
 .Python
 build/

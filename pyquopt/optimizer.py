@@ -40,8 +40,8 @@ class Optimizer:
         :param params: Numpy array of parameters completing quantum circuit specification in unitary_builder
         :return: a floating point number
         """
-        # actual_params = np.multiply(self.non_fixed_params, params) + self.fixed_params_vals
-        actual_params = params
+        actual_params = np.multiply(self.non_fixed_params, params) + self.fixed_params_vals
+        # actual_params = params
 
         complex_residuals = np.matrix.flatten(self.unitary_builder.build_unitary(actual_params) - self.target)
         unitary_cost = np.vdot(complex_residuals, complex_residuals).real
@@ -59,6 +59,7 @@ class Optimizer:
         :return: an array of least-squares residuals (unsquared)
         """
         actual_params = np.multiply(self.non_fixed_params, params) + self.fixed_params_vals
+        # print(actual_params)
 
         complex_residuals = np.matrix.flatten(self.unitary_builder.build_unitary(actual_params) - self.target)
         real_residuals = np.hstack((complex_residuals.real, complex_residuals.imag))
@@ -66,7 +67,7 @@ class Optimizer:
                                           * np.sin(4 * params) * np.sin(2 * params)
                                           * np.sin(2 * params))
         real_and_angle_conform_residuals = np.hstack((real_residuals, angle_conform_residuals))
-        large_angle_residuals = 1e-8 * params ** 2
+        large_angle_residuals = self.gamma * params ** 2
         all_residuals = np.hstack((real_and_angle_conform_residuals, large_angle_residuals))
 
         # return real_and_angle_conform_residuals
@@ -84,14 +85,16 @@ class Optimizer:
         min_params = None
 
         for i in range(num_guesses):
-            x0 = np.random.rand((len(self.mq_instructions) + 1) * 3 * self.num_qubits) * 2 * np.pi
-            opt_results = minimize(self.objective_function_bfgs, x0=x0, method='BFGS', options={'disp': True})
-            print(f"Test {i}: {opt_results.fun}")
+            x0_all = np.random.rand((len(self.mq_instructions) + 1) * 3 * self.num_qubits) * 2 * np.pi
+            x0 = np.multiply(x0_all, self.non_fixed_params) + self.fixed_params_vals
+            opt_results = minimize(self.objective_function_bfgs, x0=x0, method='BFGS', options={'disp': False})
+            # print(f"Test {i}: {opt_results.fun}")
             if opt_results.fun < min_fun_val:
                 min_fun_val = opt_results.fun
-                min_params = opt_results.x
+                min_params = np.multiply(opt_results.x, self.non_fixed_params) + self.fixed_params_vals
 
         return min_params, min_fun_val
+
 
     def find_parameters_least_squares(self, num_guesses: int) -> Tuple[np.ndarray, float]:
         """
@@ -107,11 +110,12 @@ class Optimizer:
             return min_params, min_fun_val
 
         for _ in range(num_guesses):
-            x0 = np.random.rand((len(self.mq_instructions) + 1) * 3 * self.num_qubits) * 2 * np.pi
+            x0_all = np.random.rand((len(self.mq_instructions) + 1) * 3 * self.num_qubits) * 2 * np.pi
+            x0 = np.multiply(x0_all, self.non_fixed_params) + self.fixed_params_vals
             opt_results = least_squares(self.least_square_residuals, x0=x0, method='trf', verbose=0, ftol=1e-100)
             if opt_results.cost < min_fun_val:
                 min_fun_val = opt_results.cost
-                min_params = opt_results.x
+                min_params = np.multiply(opt_results.x, self.non_fixed_params) + self.fixed_params_vals
 
         return min_params, min_fun_val
 

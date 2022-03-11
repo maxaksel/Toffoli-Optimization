@@ -9,11 +9,32 @@ from math import sqrt
 import numpy as np
 
 
+class TwoGates:
+    """
+    Class containing various 2x2 unitary matrices
+    that implement IBM Q native gates (or proposed native gates)
+    or produce common entangled states (e.g., the GHZ state).
+    """
+    CR01 = np.array([
+        [0, 0, -0.5+0.5j, -0.5-0.5j],
+        [0, 0, -0.5-0.5j, -0.5+0.5j],
+        [-0.5+0.5j, 0.5+0.5j, 0, 0],
+        [0.5+0.5j, -0.5+0.5j, 0, 0]
+    ], dtype=np.complex128)
+
+    GHZ = np.array([
+        [1/sqrt(2), 0, 1/sqrt(2), 0],
+        [0, 1/sqrt(2), 0, 1/sqrt(2)],
+        [0, 1/sqrt(2), 0, -1/sqrt(2)],
+        [1/sqrt(2), 0, -1/sqrt(2), 0]
+    ], dtype=np.complex128)
+
+
 class ThreeGates:
     """
     Class containing various 3x3 unitary matrices
     that implement IBM Q native gates (or proposed native gates)
-    or produce common entangled states (e.g., the GHZ state)
+    or produce common entangled states (e.g., the GHZ state).
     """
     CR01 = np.array([
         [0, 0, 0, 0, 0.5-0.5j, 0, 0.5+0.5j, 0],
