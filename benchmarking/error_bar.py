@@ -1,3 +1,7 @@
+"""
+Module containing tools for 95% fidelity error bound calculations.
+"""
+
 import numpy as np
 from copy import deepcopy
 

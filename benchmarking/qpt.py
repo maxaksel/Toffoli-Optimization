@@ -1,4 +1,9 @@
+"""
+Module containing QPT benchmarking tools.
+"""
+
 # General Imports
+from typing import List, Tuple
 from math import pi
 from copy import deepcopy
 import numpy as np
@@ -7,7 +12,8 @@ from collections import defaultdict
 
 # Qiskit-related Imports
 import qiskit
-from qiskit.providers.backend import IBMQBackend
+from qiskit.providers.ibmq import IBMQBackend
+from qiskit.providers.ibmq.accountprovider import AccountProvider
 import qiskit.quantum_info as qi
 from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister, Aer, transpile, execute
 from qiskit.providers.aer import noise
@@ -33,25 +39,37 @@ import statistics
 from error_bar import Montecarlo
 
 
-def generate_qpt_circuits(circuit: QuantumCircuit, backend: IBMQBackend) -> List[QuantumCircuit]:
+def generate_qpt_circuits(circuit: QuantumCircuit, qubits: List[int], backend: IBMQBackend) -> List[QuantumCircuit]:
     """
-    Generate process tomography circuits.
+    Generate process tomography circuits for a provided quantum circuit.
 
     :param circuit: quantum circuit to characterize
     :param backend: IBM Q backend to target
     :return: a list of labelbed QPT circuits
     """
-    qpt_circuits = process_tomography_circuits(circuits, [0, 1, 3])
+    qpt_circuits = process_tomography_circuits(circuit, qubits)
 
-    for circuit in qpt_circuits:
-        circuit.add_calibration('ccx', [0, 1, 3], canonical_toffoli_schedule)  # add optimized CCX schedule to each qpt circuit
+    # Need to externally add calibrations for all circuits after QPT circuits have been generated.
+    # for circuit in qpt_circuits:
+    #    circuit.add_calibration('ccx', qubits, canonical_toffoli_schedule)  # add optimized CCX schedule to each qpt circuit
 
-    t_qpt_circuits = [transpile(circuit, backend=backend) for circuit in qpt_circuits]
+    # t_qpt_circuits = [transpile(circuit, backend=backend) for circuit in qpt_circuits]
 
-    return t_qpt_circuits
+    return qpt_circuits
 
 
-def run_qpt_job(qpt_circuits: List[QuantumCircuit], provider: Provider, backend: IBMQBackend, shots: int, job_name: str) -> str:
+def run_qpt_job(qpt_circuits: List[QuantumCircuit], provider: AccountProvider, backend: IBMQBackend, shots: int, job_name: str) -> str:
+    """
+    Run a list of QPT circuits using an IBMQ job manager since the number of QPT circuits to run often exceeds the maximum for one job on
+    an IBMQ system.
+
+    :param qpt_circuits: a list of QPT circuits (often generated with the generate_qpt_circuits function)
+    :param provider: an AccountProvider allowing this function access to IBMQ hardware
+    :param backend: an IBMQBackend object sourced from the provider
+    :param shots: the number of times each QPT circuit should be run
+    :param job_name: string alias for job
+    :return: job_id of created IBMQ job
+    """
     IBMQ.load_account()  # attempt to load IBMQ account
     job_manager = IBMQJobManager()  # instantiate a job manager
     qpt_job = job_manager.run(qpt_circuits, backend=backend, name=job_name, shots=shots)
@@ -59,7 +77,18 @@ def run_qpt_job(qpt_circuits: List[QuantumCircuit], provider: Provider, backend:
     return qpt_job.job_set_id()
 
 
-def compute_fidelity(qpt_circuits: List[QuantumCircuit], qpt_result: Result, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]
+def compute_fidelity(qpt_circuits: List[QuantumCircuit], qpt_result: Result, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]:
+    """
+    Compute average gate fidelity from a Qiskit Result object containing results of a QPT run on quantum hardware.
+    
+
+    :param qpt_circuits: a list of the original QPT circuits sent to quantum computer
+    :param provider: the provider used to send said QPT circuits
+    :param qpt_result: a  Qiskit Result object with QPT circuit run results
+    :param target_unitary: a Qiskit qi.Operator object with the unitary matrix of the desired operation
+    :param mc_trials: the number of Monte Carlo trials to run for error bar purposes
+    :return: a tuple with average fidelity in the first entry and a 95% error bound in the second entry
+    """
     fidelity_list = []
 
     #simulating multinomial distribution based on the mitigated distribution from mitigated_c_ccx_job_result
@@ -79,7 +108,7 @@ def compute_fidelity(qpt_circuits: List[QuantumCircuit], qpt_result: Result, tar
 
 
 
-def compute_fidelity_job_id(qpt_circuits: List[QuantumCircuit], provider: Provider, qpt_result_job_id: str, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]:
+def compute_fidelity_job_id(qpt_circuits: List[QuantumCircuit], provider: AccountProvider, qpt_result_job_id: str, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]:
     """
     Compute average gate fidelity from the job id of a QPT run on quantum hardware.
 
@@ -88,6 +117,7 @@ def compute_fidelity_job_id(qpt_circuits: List[QuantumCircuit], provider: Provid
     :param qpt_result_job_id: a string with the QPT job id
     :param target_unitary: a Qiskit qi.Operator object with the unitary matrix of the desired operation
     :param mc_trials: the number of Monte Carlo trials to run for error bar purposes
+    :return: a tuple with average fidelity in the first entry and a 95% error bound in the second entry
     """
     qpt_job = job_manager.retrieve_job_set(job_set_id=qpt_result_job_id, provider=provider)
     qpt_result = qpt_job.results().combine_results()

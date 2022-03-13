@@ -1,7 +1,15 @@
+"""
+Module containing tools for generating Toffoli gate pulse schedules.
+"""
+
+from typing import List
 from math import pi
+import numpy as np
 
 #Qiskit-related imports
-from qiskit.providers.backend import IBMBackend
+from qiskit import pulse
+from qiskit.pulse.schedule import Schedule
+from qiskit.providers.ibmq import IBMQBackend
 
 # Superstaq-related imports
 import cirq
@@ -9,72 +17,109 @@ from cirq_superstaq import Service, AceCRPlusMinus, AceCRMinusPlus
 import cirq_superstaq
 from cirq.contrib.svg import SVGCircuit
 
+
 class PulseGates:
-    def __init__(backend: IBMQBackend, ss_host, ss_api):
+    """
+    Class for managing creation of Toffoli gate pulse schedules for QPT benchmarking.
+    """
+
+    def __init__(self, backend: IBMQBackend, ss_host: str, ss_api: str):
+        """
+        Constructor for PulseGates class.
+
+        :param backend: IBMQBackend being targeted
+        :param ss_host: Superstaq host server (can be set to empty string)
+        :param ss_api: Superstaq client API key
+        """
         self.backend = backend
-        self.service = Service(remote_host=ss_host, api_key=ss_api) # Superstaq API key
+
+        if ss_host == "":
+            self.service = Service(api_key=ss_api)
+        else:
+            self.service = Service(remote_host=ss_host, api_key=ss_api) # Superstaq API key
 
     def get_canonical_linear_toffoli(self, qubits: List[int]) -> Schedule:
+        """
+        Get a pulse schedule for the standard or "canonical" quantum circuit implementation of
+        the Toffoli gate.
+
+
+        :param qubits: the qubits over which the Toffoli gate should act 
+        :return: a Qiskit Schedule object
+        """
         q0 = qubits[0]
         q1 = qubits[1]
         q2 = qubits[2]
 
-        with pulse.build(backend, name='canonical_linear_toffoli') as canonical_toffoli_schedule:
-            pulse.u3(pi/2, 0, pi, q2)  # Hadamard
+        with pulse.build(self.backend, name='canonical_linear_toffoli') as canonical_toffoli_schedule:
+            pulse.u3(np.pi/2, 0, np.pi, q2)  # Hadamard
 
             # T gates on qubits 0, 1, 2
-            pulse.u3(0, 0, pi/4, q0)
-            pulse.u3(0, 0, pi/4, q1)
-            pulse.u3(0, 0, pi/4, q2)
+            pulse.u3(0, 0, np.pi/4, q0)
+            pulse.u3(0, 0, np.pi/4, q1)
+            pulse.u3(0, 0, np.pi/4, q2)
 
             pulse.cx(q0, q1)
             pulse.cx(q1, q2)
             pulse.cx(q0, q1)
 
-            pulse.u3(0, 0, pi/4, q2)
+            pulse.u3(0, 0, np.pi/4, q2)
 
             pulse.cx(q1, q2)
             pulse.cx(q0, q1)
 
-            pulse.u3(0, 0, -pi/4, q1)
-            pulse.u3(0, 0, -pi/4, q2)
+            pulse.u3(0, 0, -np.pi/4, q1)
+            pulse.u3(0, 0, -np.pi/4, q2)
 
             pulse.cx(q1, q2)
             pulse.cx(q0, q1)
 
-            pulse.u3(0, 0, -pi/4, q2)
+            pulse.u3(0, 0, -np.pi/4, q2)
 
             pulse.cx(q1, q2)
 
-            pulse.u3(pi/2, 0, pi, q2)  # Hadamard
+            pulse.u3(np.pi/2, 0, np.pi, q2)  # Hadamard
 
         return canonical_toffoli_schedule
 
-    def get_optimized_linear_toffoli(self, qubits: List[int], target: str):
+    def get_optimized_linear_toffoli(self, qubits: List[int], target: str) -> Schedule:
+        """
+        Get a pulse schedule of the native gate-level optimized Toffoli gate for linear
+        qubit architectures.
+
+        :param qubits: the qubits over which the Toffoli gate should act
+        :param target: a string representing the IBM Q target device
+        :return: a Qiskit Schedule object
+        """
         q0 = cirq.LineQubit(qubits[0])
         q1 = cirq.LineQubit(qubits[1])
         q2 = cirq.LineQubit(qubits[2])
 
+        # q0 = qubits[0]
+        # q1 = qubits[1]
+        # q2 = qubits[2]
         opt_toffoli = cirq.Circuit(
             # Specify pulse here
-            cirq.Moment(cirq.rz(3*pi/4)(q0), cirq.rz(pi/4)(q1), cirq.rz(-pi/2)(q2)),
-            cirq.Moment(cirq_superstaq.AceCR("-+", cirq.rx(np.pi/2))(q0, q1), cirq.rx(pi/2)(q2)),
-            cirq.Moment(cirq.rz(-pi/2)(q0), cirq.rz(pi/2)(q1), cirq.rz(pi/4)(q2)),
-            cirq.Moment(cirq_superstaq.AceCR("-+", cirq.rx(-np.pi/2))(q1, q2)),
-            cirq.Moment(cirq_superstaq.AceCR("+-", cirq.rx(np.pi/2))(q0, q1)),
-            cirq.Moment(cirq.rz(pi/2)(q0), cirq.rz(-pi/2)(q1), cirq.rz(pi/4)(q2)),
-            cirq.Moment(cirq_superstaq.AceCR("+-", cirq.rx(np.pi/2))(q1, q2)),
-            cirq.Moment(cirq_superstaq.AceCR("-+", cirq.rx(np.pi/2))(q0, q1)),
-            cirq.Moment(cirq.rz(-pi/2)(q0), cirq.rz(pi/4)(q1), cirq.rz(-pi/4)(q2)),
-            cirq.Moment(cirq_superstaq.AceCR("-+", cirq.rx(np.pi/2))(q1, q2)),
-            cirq.Moment(cirq_superstaq.AceCR("+-", cirq.rx(np.pi/2))(q0, q1)),
-            cirq.Moment(cirq.rz(-pi/2)(q1), cirq.rz(-pi/4)(q2)),
-            cirq.Moment(AceCRPlusMinus(q1, q2)),
-            cirq.Moment(cirq.rz(pi/2)(q2)),
-            cirq.Moment(cirq.rx(pi/2)(q2)),
-            cirq.Moment(cirq.rz(pi)(q2))
+            cirq.Moment(cirq.rz(3*np.pi/4)(q0), cirq.rz(np.pi/4)(q1), cirq.rz(-np.pi/2)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+", np.pi/2)(q0, q1), cirq.rx(np.pi/2)(q2)),
+            cirq.Moment(cirq.rz(-np.pi/2)(q0), cirq.rz(np.pi/2)(q1), cirq.rz(np.pi/4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+", -np.pi/2)(q1, q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-", np.pi/2)(q0, q1)),
+            cirq.Moment(cirq.rz(np.pi/2)(q0), cirq.rz(-np.pi/2)(q1), cirq.rz(np.pi/4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-", np.pi/2)(q1, q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+", np.pi/2)(q0, q1)),
+            cirq.Moment(cirq.rz(-np.pi/2)(q0), cirq.rz(np.pi/4)(q1), cirq.rz(-np.pi/4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+", np.pi/2)(q1, q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-", np.pi/2)(q0, q1)),
+            cirq.Moment(cirq.rz(-np.pi/2)(q1), cirq.rz(-np.pi/4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-")(q1, q2)),
+            cirq.Moment(cirq.rz(np.pi/2)(q2)),
+            cirq.Moment(cirq.rx(np.pi/2)(q2)),
+            cirq.Moment(cirq.rz(np.pi)(q2))
         )
 
-        opt_schedule = self.service.ibmq_compile(opt_toffoli, target=target)
+        opt_compiler_object = self.service.ibmq_compile(opt_toffoli, target=target)
+        opt_schedule = opt_compiler_object.pulse_sequence
 
         return opt_schedule
+
