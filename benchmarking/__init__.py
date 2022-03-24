@@ -1,6 +1,6 @@
 """
 Tools for running QPT on quantum circuits.
 """
-from .pulses import PulseGates
+from .gates import PulseGates, Gates
 from .qpt import *
 

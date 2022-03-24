@@ -7,7 +7,7 @@ from math import pi
 import numpy as np
 
 #Qiskit-related imports
-from qiskit import pulse
+from qiskit import pulse, QuantumCircuit
 from qiskit.pulse.schedule import Schedule
 from qiskit.providers.ibmq import IBMQBackend
 
@@ -17,6 +17,66 @@ from cirq_superstaq import Service, AceCRPlusMinus, AceCRMinusPlus
 import cirq_superstaq
 from cirq.contrib.svg import SVGCircuit
 
+
+class Gates:
+    """
+    Class for managing gate-level creation of Toffoli gates for QPT benchmarking
+    """
+
+    def __init__(self, backend: IBMQBackend):
+        self.backend = backend
+
+    def get_canonical_full_toffoli(self, qubits: List[int]) -> QuantumCircuit:
+        qc = QuantumCircuit(self.backend.configuration().n_qubits)
+
+        q0 = qubits[0]
+        q1 = qubits[1]
+        q2 = qubits[2]
+
+        qc.h(q2)
+        qc.cx(q1, q2)
+        qc.tdg(q2)
+        qc.cx(q0, q2)
+        qc.t(q2)
+        qc.cx(q1, q2)
+        qc.tdg(q2)
+        qc.cx(q0, q2)
+        qc.t(q1)
+        qc.t(q2)
+        qc.cx(q0, q1)
+        qc.t(q0)
+        qc.tdg(q1)
+        qc.h(q2)
+        qc.cx(q0, q1)
+
+        return qc
+
+    def get_canonical_linear_toffoli(self, qubits: List[int]) -> QuantumCircuit:
+        qc = QuantumCircuit(self.backend.configuration().n_qubits)
+
+        q0 = qubits[0]
+        q1 = qubits[1]
+        q2 = qubits[2]
+
+        qc.h(q2)
+        qc.t(q0)
+        qc.t(q1)
+        qc.t(q2)
+        qc.cx(q0, q1)
+        qc.cx(q1, q2)
+        qc.cx(q0, q1)
+        qc.t(q2)
+        qc.cx(q1, q2)
+        qc.cx(q0, q1)
+        qc.tdg(q1)
+        qc.tdg(q2)
+        qc.cx(q1, q2)
+        qc.cx(q0, q1)
+        qc.tdg(q2)
+        qc.cx(q1, q2)
+        qc.h(q2)
+
+        return qc
 
 class PulseGates:
     """

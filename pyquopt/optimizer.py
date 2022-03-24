@@ -112,7 +112,7 @@ class Optimizer:
         for _ in range(num_guesses):
             x0_all = np.random.rand((len(self.mq_instructions) + 1) * 3 * self.num_qubits) * 2 * np.pi
             x0 = np.multiply(x0_all, self.non_fixed_params) + self.fixed_params_vals
-            opt_results = least_squares(self.least_square_residuals, x0=x0, method='trf', verbose=0, ftol=1e-100)
+            opt_results = least_squares(self.least_square_residuals, x0=x0, method='lm', verbose=0, ftol=1e-15)
             if opt_results.cost < min_fun_val:
                 min_fun_val = opt_results.cost
                 min_params = np.multiply(opt_results.x, self.non_fixed_params) + self.fixed_params_vals

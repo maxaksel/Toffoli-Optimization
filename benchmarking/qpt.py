@@ -15,6 +15,7 @@ import qiskit
 from qiskit.providers.ibmq import IBMQBackend
 from qiskit.providers.ibmq.accountprovider import AccountProvider
 import qiskit.quantum_info as qi
+from qiskit.ignis.mitigation.measurement.filters import MeasurementFilter
 from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister, Aer, transpile, execute
 from qiskit.providers.aer import noise
 from qiskit.compiler import assemble
@@ -36,7 +37,7 @@ from qiskit.result import Result
 
 #Error bar-related Imports
 import statistics
-from error_bar import Montecarlo
+from .error_bar import Montecarlo
 
 
 def generate_qpt_circuits(circuit: QuantumCircuit, qubits: List[int], backend: IBMQBackend) -> List[QuantumCircuit]:
@@ -92,14 +93,16 @@ def compute_fidelity(qpt_circuits: List[QuantumCircuit], qpt_result: Result, tar
     fidelity_list = []
 
     #simulating multinomial distribution based on the mitigated distribution from mitigated_c_ccx_job_result
-    for _ in range(mc_trials):
+    for trial_number in range(mc_trials):
         qpt_result_random = Montecarlo(qpt_result)
         qpt_tomo_random = ProcessTomographyFitter(qpt_result_random, qpt_circuits)
         # Tomographic reconstruction of the canonical CCX operation
         choi_fit_lstsq = qpt_tomo_random.fit(method='lstsq')
 
         avg_fidelity_mc = qi.average_gate_fidelity(choi_fit_lstsq, target=target_unitary)
-        fidelity_list.append(fidelity_mc)
+        fidelity_list.append(avg_fidelity_mc)
+
+        print(f"Trial {trial_number}: {avg_fidelity_mc}")
 
     avg_fidelity = sum(fidelity_list) / len(fidelity_list)
     error_bar = statistics.pstdev(fidelity_list) * 1.96  # 95% confidence interval
@@ -107,20 +110,25 @@ def compute_fidelity(qpt_circuits: List[QuantumCircuit], qpt_result: Result, tar
     return avg_fidelity, error_bar
 
 
-
-def compute_fidelity_job_id(qpt_circuits: List[QuantumCircuit], provider: AccountProvider, qpt_result_job_id: str, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]:
+def compute_fidelity_job_id(qpt_circuits: List[QuantumCircuit], provider: AccountProvider, qpt_result_job_id: str, meas_filter: MeasurementFilter, target_unitary: qi.Operator, mc_trials: int) -> Tuple[float, float]:
     """
     Compute average gate fidelity from the job id of a QPT run on quantum hardware.
 
     :param qpt_circuits: a list of the original QPT circuits sent to quantum computer
     :param provider: the provider used to send said QPT circuits
     :param qpt_result_job_id: a string with the QPT job id
+    :param meas_filter: measurement error filter for device QPT job was run on (set to None to ignore)
     :param target_unitary: a Qiskit qi.Operator object with the unitary matrix of the desired operation
     :param mc_trials: the number of Monte Carlo trials to run for error bar purposes
     :return: a tuple with average fidelity in the first entry and a 95% error bound in the second entry
     """
+    job_manager = IBMQJobManager()
     qpt_job = job_manager.retrieve_job_set(job_set_id=qpt_result_job_id, provider=provider)
     qpt_result = qpt_job.results().combine_results()
+
+    if meas_filter != None:
+        mitigated_qpt_result = meas_filter.apply(qpt_result)
+        return compute_fidelity(qpt_circuits, mitigated_qpt_result, target_unitary, mc_trials)
 
     return compute_fidelity(qpt_circuits, qpt_result, target_unitary, mc_trials)
 
