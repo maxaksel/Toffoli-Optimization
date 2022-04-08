@@ -178,8 +178,61 @@ class PulseGates:
             cirq.Moment(cirq.rz(np.pi)(q2))
         )
 
+        print(cirq.testing.assert_allclose_up_to_global_phase(cirq.unitary(cirq.TOFFOLI), cirq.unitary(opt_toffoli),
+                                                              atol=1e-8))
+
         opt_compiler_object = self.service.ibmq_compile(opt_toffoli, target=target)
         opt_schedule = opt_compiler_object.pulse_sequence
 
         return opt_schedule
 
+    def get_optimized_linear_toffoli_no_sandwich(self, qubits: List[int], target: str) -> Schedule:
+        """
+        Get a pulse schedule of the native gate-level optimized Toffoli gate for linear
+        qubit architectures. Do not use sandwiching method.
+
+        :param qubits: the qubits over which the Toffoli gate should act
+        :param target: a string representing the IBM Q target device
+        :return: a Qiskit Schedule object
+        """
+        q0 = cirq.LineQubit(qubits[0])
+        q1 = cirq.LineQubit(qubits[1])
+        q2 = cirq.LineQubit(qubits[2])
+
+        # q0 = qubits[0]
+        # q1 = qubits[1]
+        # q2 = qubits[2]
+        opt_toffoli = cirq.Circuit(
+            # Specify pulse here
+            cirq.Moment(cirq.rz(3 * np.pi / 4)(q0), cirq.rz(np.pi / 4)(q1), cirq.rz(-np.pi / 2)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+")(q0, q1), cirq.rx(np.pi / 2)(q2)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q1)),
+            cirq.Moment(cirq.rz(-np.pi / 2)(q0), cirq.rz(np.pi / 2)(q1), cirq.rz(np.pi / 4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+")(q1, q2)),
+            cirq.Moment(cirq.rx(-np.pi / 2)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-")(q0, q1)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q1)),
+            cirq.Moment(cirq.rz(np.pi / 2)(q0), cirq.rz(-np.pi / 2)(q1), cirq.rz(np.pi / 4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-")(q1, q2)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+")(q0, q1)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q1)),
+            cirq.Moment(cirq.rz(-np.pi / 2)(q0), cirq.rz(np.pi / 4)(q1), cirq.rz(-np.pi / 4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("-+")(q1, q2)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-")(q0, q1)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q1)),
+            cirq.Moment(cirq.rz(-np.pi / 2)(q1), cirq.rz(-np.pi / 4)(q2)),
+            cirq.Moment(cirq_superstaq.AceCR("+-")(q1, q2)),
+            cirq.Moment(cirq.rz(np.pi / 2)(q2)),
+            cirq.Moment(cirq.rx(np.pi / 2)(q2)),
+            cirq.Moment(cirq.rz(np.pi)(q2))
+        )
+
+        print(cirq.testing.assert_allclose_up_to_global_phase(cirq.unitary(cirq.TOFFOLI), cirq.unitary(opt_toffoli),
+                                                              atol=1e-8))
+
+        opt_compiler_object = self.service.ibmq_compile(opt_toffoli, target=target)
+        opt_schedule = opt_compiler_object.pulse_sequence
+
+        return opt_schedule
